@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cờ Cá Ngựa: Kỷ Nguyên Điện Trường</title>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Orbitron cho phong cách Sci-Fi, Nunito cho văn bản dễ đọc -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #050814;
+            color: #f8fafc;
+        }
+
+        .font-scifi { font-family: 'Orbitron', sans-serif; }
+
+        /* Lưới nền phòng thí nghiệm */
+        .bg-grid {
+            background-image: 
+                linear-gradient(rgba(34, 211, 238, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(34, 211, 238, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        @keyframes scale-in { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .animate-scale-in { animation: scale-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        
+        /* Vòng sáng quanh quân cờ đang đến lượt */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(34, 211, 238, 0); }
+            100% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(34, 211, 238, 0); }
+        }
+        .active-player-ring { animation: pulse-ring 2s infinite; border-color: #fff !important; }
+        
+        /* Hiệu ứng xúc xắc lượng tử */
+        .dice-spin { animation: spin 0.15s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg) scale(1.1); filter: hue-rotate(90deg); } }
+
+        /* Nút bấm viễn tưởng */
+        .btn-scifi {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+        .btn-scifi::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: all 0.5s;
+        }
+        .btn-scifi:hover::before { left: 100%; }
+        .btn-scifi:active { transform: scale(0.95); }
+
+        /* Kính mờ (Glassmorphism) */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+        }
+    </style>
+</head>
+<body class="bg-grid overflow-hidden">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- NGÂN HÀNG CÂU HỎI (20 CÂU ĐIỆN TRƯỜNG ĐỀU) ---
+        const QUESTIONS = [
+          { id: 1, text: "Điện trường giữa hai bản phẳng nhiễm điện trái dấu đặt song song là gì?", options: ["Điện trường tĩnh", "Điện trường đều", "Điện trường biến thiên", "Từ trường đều"], correct: 1 },
+          { id: 2, text: "Công thức tính cường độ điện trường giữa hai bản phẳng đặt song song là?", options: ["E = U.d", "E = U/d", "E = d/U", "E = q.U"], correct: 1 },
+          { id: 3, text: "Đơn vị của cường độ điện trường E là gì?", options: ["Vôn (V)", "Joule (J)", "Vôn trên mét (V/m)", "Niutơn (N)"], correct: 2 },
+          { id: 4, text: "Biểu thức độ lớn gia tốc của điện tích q, khối lượng m trong điện trường đều E là?", options: ["a = |q|E / m", "a = mE / |q|", "a = |q|m / E", "a = U / (m.d)"], correct: 0 },
+          { id: 5, text: "Lực điện tác dụng lên điện tích q đặt trong điện trường E có biểu thức vectơ là?", options: ["F = q.U", "F = q.E", "F = E/q", "F = q/(E.d)"], correct: 1 },
+          { id: 6, text: "Đặc điểm các đường sức của điện trường đều là gì?", options: ["Là các đường cong kín", "Là các đường thẳng song song, cách đều nhau", "Xuất phát từ cực âm, tận cùng ở cực dương", "Giao nhau tại trung điểm"], correct: 1 },
+          { id: 7, text: "Nếu lực điện cùng chiều vận tốc ban đầu, điện tích sẽ chuyển động như thế nào?", options: ["Tròn đều", "Thẳng đều", "Thẳng chậm dần đều", "Thẳng nhanh dần đều"], correct: 3 },
+          { id: 8, text: "Một hạt mang điện dương chuyển động dọc theo chiều đường sức điện trường. Chuyển động của hạt là?", options: ["Nhanh dần đều", "Chậm dần đều", "Đứng yên", "Tròn đều"], correct: 0 },
+          { id: 9, text: "Một electron (q < 0) bay vào điện trường đều dọc theo chiều đường sức. Vận tốc của nó sẽ?", options: ["Tăng dần", "Giảm dần", "Không đổi", "Đổi hướng 90 độ"], correct: 1 },
+          { id: 10, text: "Lực điện tác dụng lên electron (q < 0) có hướng như thế nào so với điện trường E?", options: ["Cùng hướng", "Ngược hướng", "Vuông góc", "Tạo một góc 45 độ"], correct: 1 },
+          { id: 11, text: "Một điện tích bay vào điện trường đều với vận tốc ban đầu vuông góc với các đường sức. Quỹ đạo của nó là?", options: ["Đường thẳng", "Đường tròn", "Một nhánh parabol", "Đường elip"], correct: 2 },
+          { id: 12, text: "Theo phương vuông góc với đường sức điện, điện tích chuyển động như thế nào? (Bỏ qua trọng lực)", options: ["Nhanh dần đều", "Thẳng đều", "Chậm dần đều", "Dao động điều hòa"], correct: 1 },
+          { id: 13, text: "Hai bản kim loại phẳng song song cách nhau 10cm. Hiệu điện thế giữa hai bản là 500V. Cường độ điện trường là?", options: ["5000 V/m", "50 V/m", "50000 V/m", "5 V/m"], correct: 0 },
+          { id: 14, text: "Một điện tích q = 2 μC chịu tác dụng của lực điện F = 0,01 N. Cường độ điện trường E có độ lớn là?", options: ["5000 V/m", "200 V/m", "50 V/m", "0,02 V/m"], correct: 0 },
+          { id: 15, text: "Khoảng cách giữa hai bản phẳng là d = 5 cm, cường độ điện trường E = 4000 V/m. Hiệu điện thế là?", options: ["20000 V", "200 V", "800 V", "80 V"], correct: 1 },
+          { id: 16, text: "Một electron (q = -1,6.10^-19 C) đặt trong điện trường đều E = 1000 V/m. Độ lớn lực điện tác dụng là?", options: ["1,6.10^-22 N", "1,6.10^-16 N", "1,6.10^-19 N", "1000 N"], correct: 1 },
+          { id: 17, text: "Một ion dương bay dọc theo hướng từ bản dương sang bản âm của điện trường đều. Động năng của ion sẽ?", options: ["Giảm dần", "Tăng dần", "Không đổi", "Bằng 0"], correct: 1 },
+          { id: 18, text: "Chọn câu SAI khi nói về điện trường đều:", options: ["Vectơ cường độ điện trường tại mọi điểm là như nhau", "Các đường sức song song cách đều", "Cường độ điện trường giảm dần theo khoảng cách", "Ví dụ: điện trường giữa 2 bản kim loại phẳng"], correct: 2 },
+          { id: 19, text: "Quãng đường S mà điện tích di chuyển từ trạng thái nghỉ dọc theo đường sức trong thời gian t là?", options: ["S = v0.t", "S = (1/2)a.t^2", "S = a.t", "S = U.d.t"], correct: 1 },
+          { id: 20, text: "Electron chuyển động ngược chiều đường sức điện trường. Động năng của electron sẽ?", options: ["Tăng dần", "Giảm dần", "Không đổi", "Biến thiên điều hòa"], correct: 0 }
+        ];
+
+        // --- CẤU TRÚC TOẠ ĐỘ BÀN CỜ CÁ NGỰA (15x15 GRID) ---
+        const PERIMETER = [
+            {x:1, y:6}, {x:2, y:6}, {x:3, y:6}, {x:4, y:6}, {x:5, y:6},
+            {x:6, y:5}, {x:6, y:4}, {x:6, y:3}, {x:6, y:2}, {x:6, y:1}, {x:6, y:0},
+            {x:7, y:0}, {x:8, y:0},
+            {x:8, y:1}, {x:8, y:2}, {x:8, y:3}, {x:8, y:4}, {x:8, y:5},
+            {x:9, y:6}, {x:10, y:6}, {x:11, y:6}, {x:12, y:6}, {x:13, y:6}, {x:14, y:6},
+            {x:14, y:7}, {x:14, y:8},
+            {x:13, y:8}, {x:12, y:8}, {x:11, y:8}, {x:10, y:8}, {x:9, y:8},
+            {x:8, y:9}, {x:8, y:10}, {x:8, y:11}, {x:8, y:12}, {x:8, y:13}, {x:8, y:14},
+            {x:7, y:14}, {x:6, y:14},
+            {x:6, y:13}, {x:6, y:12}, {x:6, y:11}, {x:6, y:10}, {x:6, y:9},
+            {x:5, y:8}, {x:4, y:8}, {x:3, y:8}, {x:2, y:8}, {x:1, y:8}, {x:0, y:8},
+            {x:0, y:7}, {x:0, y:6}
+        ];
+
+        const WINNING_SCORE = 57; // 51 bước vòng ngoài + 6 bước vào tâm
+
+        const getTeamPath = (teamId) => {
+            const startIndexes = [0, 13, 26, 39]; // Cyan, Rose, Yellow, Violet
+            let path = [];
+            let start = startIndexes[teamId];
+            
+            for(let i = 0; i < 51; i++) {
+                path.push(PERIMETER[(start + i) % 52]);
+            }
+            if(teamId === 0) path.push({x:1, y:7}, {x:2, y:7}, {x:3, y:7}, {x:4, y:7}, {x:5, y:7}, {x:6, y:7});
+            if(teamId === 1) path.push({x:7, y:1}, {x:7, y:2}, {x:7, y:3}, {x:7, y:4}, {x:7, y:5}, {x:7, y:6});
+            if(teamId === 2) path.push({x:13, y:7}, {x:12, y:7}, {x:11, y:7}, {x:10, y:7}, {x:9, y:7}, {x:8, y:7});
+            if(teamId === 3) path.push({x:7, y:13}, {x:7, y:12}, {x:7, y:11}, {x:7, y:10}, {x:7, y:9}, {x:7, y:8});
+            return path;
+        };
+        const TEAM_PATHS = [getTeamPath(0), getTeamPath(1), getTeamPath(2), getTeamPath(3)];
+
+        // --- THIẾT LẬP CÁC ĐỘI (PHONG CÁCH KHOA HỌC) ---
+        const PLAYERS_SETUP = [
+            { id: 0, name: "Đội Electron", color: "bg-cyan-500", text: "text-cyan-400", border: "border-cyan-400", shadow: "shadow-[0_0_15px_rgba(34,211,238,0.8)]", icon: "fa-atom" },
+            { id: 1, name: "Đội Proton", color: "bg-rose-500", text: "text-rose-400", border: "border-rose-400", shadow: "shadow-[0_0_15px_rgba(244,63,94,0.8)]", icon: "fa-circle-plus" },
+            { id: 2, name: "Đội Photon", color: "bg-amber-400", text: "text-amber-400", border: "border-amber-400", shadow: "shadow-[0_0_15px_rgba(251,191,36,0.8)]", icon: "fa-sun" },
+            { id: 3, name: "Đội Ion", color: "bg-violet-500", text: "text-violet-400", border: "border-violet-400", shadow: "shadow-[0_0_15px_rgba(139,92,246,0.8)]", icon: "fa-magnet" }
+        ];
+
+        function App() {
+            const [gameState, setGameState] = useState('start');
+            const [players, setPlayers] = useState(PLAYERS_SETUP.map(p => ({ ...p, pos: 0 })));
+            const [currentPlayerIdx, setCurrentPlayerIdx] = useState(0);
+            const [diceValue, setDiceValue] = useState(1);
+            const [activeQuestion, setActiveQuestion] = useState(null);
+            const [timeLeft, setTimeLeft] = useState(20);
+            const [logs, setLogs] = useState(["Hệ thống khởi động. Sẵn sàng thực hiện bước nhảy lượng tử."]);
+
+            const timerRef = useRef(null);
+
+            const logMsg = (msg) => {
+                setLogs(prev => [msg, ...prev].slice(0, 6));
+            };
+
+            const handleRollDice = () => {
+                if (gameState !== 'playing') return;
+                setGameState('rolling');
+                
+                let rolls = 0;
+                const rollInterval = setInterval(() => {
+                    setDiceValue(Math.floor(Math.random() * 6) + 1);
+                    rolls++;
+                    if (rolls > 15) {
+                        clearInterval(rollInterval);
+                        const finalDice = Math.floor(Math.random() * 6) + 1;
+                        setDiceValue(finalDice);
+                        setTimeout(() => triggerQuestion(finalDice), 800);
+                    }
+                }, 80);
+            };
+
+            const triggerQuestion = (targetSteps) => {
+                const randomQ = QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)];
+                setActiveQuestion({ ...randomQ, stepsToMove: targetSteps });
+                setTimeLeft(20);
+                setGameState('question');
+            };
+
+            useEffect(() => {
+                if (gameState === 'question') {
+                    timerRef.current = setInterval(() => {
+                        setTimeLeft(prev => {
+                            if (prev <= 1) {
+                                clearInterval(timerRef.current);
+                                handleAnswer(-1); // Hết giờ = Sai
+                                return 0;
+                            }
+                            return prev - 1;
+                        });
+                    }, 1000);
+                }
+                return () => clearInterval(timerRef.current);
+            }, [gameState]);
+
+            const handleAnswer = (selectedIndex) => {
+                clearInterval(timerRef.current);
+                const isCorrect = selectedIndex === activeQuestion.correct;
+                const steps = activeQuestion.stepsToMove;
+                const playerName = players[currentPlayerIdx].name;
+
+                if (isCorrect) {
+                    logMsg(`✔️ Phân tích chính xác! ${playerName} dịch chuyển ${steps} ô.`);
+                    setActiveQuestion(null);
+                    movePlayerStepByStep(steps);
+                } else {
+                    logMsg(`⚠️ Phân tích lỗi/Quá giờ! ${playerName} mất lượt.`);
+                    setTimeout(() => {
+                        setActiveQuestion(null);
+                        setCurrentPlayerIdx((prev) => (prev + 1) % 4);
+                        setGameState('playing');
+                    }, 1500);
+                }
+            };
+
+            // Hàm hiệu ứng di chuyển từng bước
+            const movePlayerStepByStep = (steps) => {
+                setGameState('moving');
+                let currentPos = players[currentPlayerIdx].pos;
+                let targetPos = currentPos + steps;
+                if (targetPos > WINNING_SCORE) targetPos = WINNING_SCORE; // Kịch trần
+
+                const stepMove = () => {
+                    if (currentPos < targetPos) {
+                        currentPos++;
+                        setPlayers(prev => prev.map((p, i) => i === currentPlayerIdx ? { ...p, pos: currentPos } : p));
+                        setTimeout(stepMove, 250); 
+                    } else {
+                        if (currentPos === WINNING_SCORE) {
+                            setTimeout(() => setGameState('gameover'), 1000);
+                        } else {
+                            setTimeout(() => {
+                                setCurrentPlayerIdx((prev) => (prev + 1) % 4);
+                                setGameState('playing');
+                            }, 500);
+                        }
+                    }
+                };
+                stepMove();
+            };
+
+            const resetGame = () => {
+                setPlayers(PLAYERS_SETUP.map(p => ({ ...p, pos: 0 })));
+                setCurrentPlayerIdx(0);
+                setGameState('playing');
+                setLogs(["Hệ thống tái khởi động. Các đội đã sẵn sàng!"]);
+            };
+
+            const getTokenCoordinates = (teamId, pos) => {
+                if (pos === 0) {
+                    const baseCoords = [
+                        {x: 2.5, y: 2.5},   // Cyan
+                        {x: 12.5, y: 2.5},  // Rose
+                        {x: 12.5, y: 12.5}, // Amber
+                        {x: 2.5, y: 12.5}   // Violet
+                    ];
+                    return baseCoords[teamId];
+                }
+                return TEAM_PATHS[teamId][pos - 1];
+            };
+
+            const renderBoardCells = () => {
+                const cells = [];
+                for (let y = 0; y < 15; y++) {
+                    for (let x = 0; x < 15; x++) {
+                        let isPath = false;
+                        let innerContent = null;
+                        let cellClass = "rounded-full bg-slate-900 border border-slate-700 shadow-[inset_0_0_10px_rgba(0,0,0,0.8)] flex items-center justify-center font-bold text-xs md:text-sm text-slate-500 transition-all";
+
+                        const inPerimeter = PERIMETER.some(p => p.x === x && p.y === y);
+                        
+                        const startCyan = (x===1 && y===6);
+                        const startRose = (x===8 && y===1);
+                        const startAmber = (x===13 && y===8);
+                        const startViolet = (x===6 && y===13);
+
+                        const homeCyan = (y===7 && x>=1 && x<=5);
+                        const homeRose = (x===7 && y>=1 && y<=5);
+                        const homeAmber = (y===7 && x>=9 && x<=13);
+                        const homeViolet = (x===7 && y>=9 && y<=13);
+
+                        if (inPerimeter) {
+                            isPath = true;
+                            if (startCyan) { cellClass = "rounded-full bg-cyan-900 border-2 border-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.5)] text-cyan-400 text-lg"; innerContent = <i className="fa-solid fa-angles-right"></i>; }
+                            else if (startRose) { cellClass = "rounded-full bg-rose-900 border-2 border-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.5)] text-rose-400 text-lg"; innerContent = <i className="fa-solid fa-angles-down"></i>; }
+                            else if (startAmber) { cellClass = "rounded-full bg-amber-900 border-2 border-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.5)] text-amber-400 text-lg"; innerContent = <i className="fa-solid fa-angles-left"></i>; }
+                            else if (startViolet) { cellClass = "rounded-full bg-violet-900 border-2 border-violet-400 shadow-[0_0_10px_rgba(139,92,246,0.5)] text-violet-400 text-lg"; innerContent = <i className="fa-solid fa-angles-up"></i>; }
+                        } else if (homeCyan) {
+                            isPath = true; cellClass = "rounded bg-cyan-900/40 border border-cyan-500/50 text-cyan-300 font-scifi"; innerContent = x;
+                        } else if (homeRose) {
+                            isPath = true; cellClass = "rounded bg-rose-900/40 border border-rose-500/50 text-rose-300 font-scifi"; innerContent = y;
+                        } else if (homeAmber) {
+                            isPath = true; cellClass = "rounded bg-amber-900/40 border border-amber-500/50 text-amber-300 font-scifi"; innerContent = 14-x;
+                        } else if (homeViolet) {
+                            isPath = true; cellClass = "rounded bg-violet-900/40 border border-violet-500/50 text-violet-300 font-scifi"; innerContent = 14-y;
+                        }
+
+                        if (isPath) {
+                            cells.push(
+                                <div key={`${x}-${y}`} className="absolute w-[5.5%] h-[5.5%] -translate-x-1/2 -translate-y-1/2" 
+                                     style={{ left: `${(x + 0.5) * (100/15)}%`, top: `${(y + 0.5) * (100/15)}%` }}>
+                                    <div className={`w-full h-full ${cellClass}`}>
+                                        {innerContent}
+                                    </div>
+                                </div>
+                            );
+                        }
+                    }
+                }
+                return cells;
+            };
+
+            // MÀN HÌNH BẮT ĐẦU
+            if (gameState === 'start') {
+                return (
+                    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.1),transparent)]"></div>
+                        <div className="relative z-10 text-center glass-panel p-12 rounded-3xl border border-cyan-500/30 animate-scale-in max-w-3xl shadow-[0_0_50px_rgba(34,211,238,0.15)]">
+                            <i className="fa-solid fa-network-wired text-7xl text-cyan-400 mb-6 drop-shadow-[0_0_15px_rgba(34,211,238,0.8)]"></i>
+                            <h1 className="text-5xl md:text-6xl font-scifi text-white mb-2 uppercase tracking-wider">
+                                Cờ Cá Ngựa <span className="text-cyan-400">Điện Trường</span>
+                            </h1>
+                            <p className="text-slate-400 text-xl mb-10 font-light">
+                                Mô phỏng Vật lý 11 - Trải nghiệm thi đấu giữa các hạt cơ bản.
+                            </p>
+                            <button 
+                                onClick={() => setGameState('playing')}
+                                className="btn-scifi px-10 py-4 text-xl font-scifi text-black bg-cyan-400 rounded hover:bg-cyan-300 shadow-[0_0_20px_rgba(34,211,238,0.5)]"
+                            >
+                                <i className="fa-solid fa-power-off mr-2"></i> KHỞI ĐỘNG HỆ THỐNG
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            // MÀN HÌNH KẾT THÚC
+            if (gameState === 'gameover') {
+                const winner = [...players].sort((a,b) => b.pos - a.pos)[0];
+                return (
+                    <div className="min-h-screen flex flex-col items-center justify-center p-4 relative">
+                        <div className={`absolute inset-0 bg-[radial-gradient(circle_at_center,${winner.color.replace('bg-','rgba(').replace('500','0.2)')},transparent)]`}></div>
+                        <div className={`relative z-10 text-center glass-panel p-12 rounded-3xl border-2 ${winner.border} shadow-[0_0_60px_rgba(255,255,255,0.1)] animate-scale-in`}>
+                            <i className={`fa-solid fa-trophy text-8xl mb-6 ${winner.text} drop-shadow-[0_0_20px_currentColor] animate-bounce`}></i>
+                            <h2 className="text-2xl text-slate-300 mb-2 font-scifi tracking-widest">ĐỘI CHIẾN THẮNG:</h2>
+                            <h3 className={`text-6xl font-scifi mb-8 uppercase ${winner.text} drop-shadow-[0_0_15px_currentColor]`}>{winner.name}</h3>
+                            <button onClick={resetGame} className="btn-scifi px-8 py-3 bg-slate-700 border border-slate-500 text-white rounded hover:bg-slate-600 font-scifi transition-colors">
+                                THIẾT LẬP LẠI
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            // MÀN HÌNH CHƠI CHÍNH
+            return (
+                <div className="min-h-screen flex flex-col md:flex-row gap-6 p-4 max-w-[1600px] mx-auto">
+                    
+                    {/* CỘT TRÁI: DỮ LIỆU & ĐIỀU KHIỂN */}
+                    <div className="w-full md:w-[320px] glass-panel rounded-2xl flex flex-col z-10 shadow-2xl p-6 relative overflow-hidden border-t-4 border-t-cyan-500">
+                        
+                        <div className="mb-8">
+                            <h2 className="text-xs font-scifi text-cyan-400 mb-4 tracking-widest uppercase border-b border-slate-700 pb-2">
+                                <i className="fa-solid fa-radar mr-2"></i>Lượt Hoạt Động
+                            </h2>
+                            <div className={`text-xl font-bold p-4 rounded-xl border ${players[currentPlayerIdx].border} bg-slate-900/80 flex items-center gap-4 ${players[currentPlayerIdx].shadow} transition-all`}>
+                                <div className={`w-12 h-12 rounded-full ${players[currentPlayerIdx].color} flex items-center justify-center text-white text-2xl`}>
+                                    <i className={`fa-solid ${players[currentPlayerIdx].icon}`}></i>
+                                </div>
+                                <span className={players[currentPlayerIdx].text}>{players[currentPlayerIdx].name}</span>
+                            </div>
+                        </div>
+                        
+                        <div className="mb-8 flex flex-col items-center">
+                            <h2 className="text-xs font-scifi text-slate-400 mb-4 tracking-widest uppercase w-full border-b border-slate-700 pb-2">Máy Tạo Lượng Tử</h2>
+                            <div className={`w-32 h-32 bg-slate-900 rounded-xl border border-slate-700 flex items-center justify-center mb-6 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] relative ${gameState === 'rolling' ? 'dice-spin' : ''}`}>
+                                <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.05)_50%,transparent_75%)] bg-[length:200%_200%] animate-[pulse_2s_linear_infinite]"></div>
+                                <span className={`text-6xl font-scifi z-10 ${gameState === 'rolling' ? 'text-slate-600' : players[currentPlayerIdx].text} drop-shadow-[0_0_10px_currentColor]`}>
+                                    {diceValue}
+                                </span>
+                            </div>
+
+                            <button
+                                onClick={handleRollDice}
+                                disabled={gameState !== 'playing'}
+                                className={`btn-scifi w-full py-4 rounded font-scifi text-lg transition-all
+                                 ${gameState === 'playing' 
+                                   ? 'bg-cyan-500 hover:bg-cyan-400 text-black shadow-[0_0_15px_rgba(34,211,238,0.5)]' 
+                                   : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'}`}
+                            >
+                                {gameState === 'rolling' ? 'ĐANG TẠO SỐ...' : 'KÍCH HOẠT'}
+                            </button>
+                        </div>
+
+                        <div className="flex-1 flex flex-col min-h-[150px]">
+                            <h2 className="text-xs font-scifi text-slate-400 mb-4 tracking-widest uppercase border-b border-slate-700 pb-2">Dữ liệu hệ thống</h2>
+                            <div className="flex-1 space-y-2 font-mono text-xs text-slate-400 overflow-y-auto pr-2 custom-scrollbar">
+                                {logs.map((l, i) => (
+                                    <div key={i} className={`p-2 rounded border-l-2 ${i===0 ? "bg-slate-800 border-cyan-400 text-slate-200" : "bg-transparent border-slate-700"}`}>
+                                        > {l}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* GIỮA: BÀN CỜ ĐIỆN TRƯỜNG */}
+                    <div className="flex-1 relative flex items-center justify-center p-4">
+                        
+                        {/* Lớp phủ Câu hỏi (Modal) */}
+                        {gameState === 'question' && activeQuestion && (
+                            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+                                <div className="glass-panel p-8 rounded-2xl border border-cyan-500 max-w-2xl w-full animate-scale-in relative shadow-[0_0_50px_rgba(34,211,238,0.2)]">
+                                    <div className="absolute top-0 left-0 h-1 bg-cyan-400 transition-all duration-1000 ease-linear shadow-[0_0_10px_rgba(34,211,238,1)]" style={{width: `${(timeLeft/20)*100}%`}}></div>
+                                    <div className="flex justify-between items-center mb-6">
+                                        <div className="bg-slate-800 border border-slate-600 text-cyan-400 font-scifi px-4 py-1 rounded text-sm tracking-wide">
+                                            NHIỆM VỤ: TIẾN {activeQuestion.stepsToMove} Ô
+                                        </div>
+                                        <div className={`text-3xl font-scifi ${timeLeft <= 5 ? 'text-red-500 animate-pulse' : 'text-cyan-400'}`}>
+                                            {timeLeft}s
+                                        </div>
+                                    </div>
+                                    <h3 className="text-xl md:text-2xl font-bold mb-8 text-white leading-relaxed">{activeQuestion.text}</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {activeQuestion.options.map((opt, idx) => (
+                                            <button key={idx} onClick={() => handleAnswer(idx)} className="p-4 bg-slate-800/80 hover:bg-cyan-900/50 border border-slate-600 rounded-lg text-left text-slate-200 font-semibold transition-all hover:border-cyan-400 flex items-center group">
+                                                <span className="inline-block w-8 h-8 bg-slate-900 border border-slate-700 rounded text-center leading-8 mr-3 text-cyan-400 font-scifi group-hover:bg-cyan-500 group-hover:text-black shrink-0 transition-colors">{String.fromCharCode(65+idx)}</span> 
+                                                <span>{opt}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* CONTAINER BÀN CỜ 15x15 */}
+                        <div className="relative w-full max-w-[700px] aspect-square glass-panel rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.5)] border border-slate-700 overflow-hidden p-2">
+                            
+                            {/* 4 Khu Vực (Bases) */}
+                            {/* Base Cyan */}
+                            <div className="absolute top-2 left-2 w-[38%] h-[38%] bg-slate-900 border border-slate-700 rounded-xl flex items-center justify-center overflow-hidden">
+                                <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,rgba(34,211,238,1),transparent)]"></div>
+                                <i className="fa-solid fa-atom text-[10rem] text-cyan-500 opacity-20 rotate-12"></i>
+                                <div className="absolute top-2 left-3 text-cyan-500 font-scifi tracking-widest text-sm opacity-50">STATION_01</div>
+                            </div>
+                            {/* Base Rose */}
+                            <div className="absolute top-2 right-2 w-[38%] h-[38%] bg-slate-900 border border-slate-700 rounded-xl flex items-center justify-center overflow-hidden">
+                                <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,rgba(244,63,94,1),transparent)]"></div>
+                                <i className="fa-solid fa-circle-plus text-[10rem] text-rose-500 opacity-20 -rotate-12"></i>
+                                <div className="absolute top-2 right-3 text-rose-500 font-scifi tracking-widest text-sm opacity-50">STATION_02</div>
+                            </div>
+                            {/* Base Amber */}
+                            <div className="absolute bottom-2 right-2 w-[38%] h-[38%] bg-slate-900 border border-slate-700 rounded-xl flex items-center justify-center overflow-hidden">
+                                <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,rgba(251,191,36,1),transparent)]"></div>
+                                <i className="fa-solid fa-sun text-[10rem] text-amber-500 opacity-20 rotate-12"></i>
+                                <div className="absolute bottom-2 right-3 text-amber-500 font-scifi tracking-widest text-sm opacity-50">STATION_03</div>
+                            </div>
+                            {/* Base Violet */}
+                            <div className="absolute bottom-2 left-2 w-[38%] h-[38%] bg-slate-900 border border-slate-700 rounded-xl flex items-center justify-center overflow-hidden">
+                                <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,rgba(139,92,246,1),transparent)]"></div>
+                                <i className="fa-solid fa-magnet text-[10rem] text-violet-500 opacity-20 -rotate-12"></i>
+                                <div className="absolute bottom-2 left-3 text-violet-500 font-scifi tracking-widest text-sm opacity-50">STATION_04</div>
+                            </div>
+
+                            {/* Tâm Trái Đất (Đích) */}
+                            <div className="absolute top-[40%] left-[40%] w-[20%] h-[20%] bg-slate-900 border border-slate-600 rounded flex items-center justify-center shadow-[inset_0_0_20px_rgba(255,255,255,0.1)]">
+                                <i className="fa-solid fa-crosshairs text-3xl text-slate-400 opacity-50 animate-pulse"></i>
+                            </div>
+
+                            {/* Các ô bàn cờ */}
+                            {renderBoardCells()}
+
+                            {/* Render Các Đội (Tokens) */}
+                            {players.map((player, idx) => {
+                                const coords = getTokenCoordinates(idx, player.pos);
+                                const playersAtSamePos = players.filter(p => p.pos > 0 && p.pos === player.pos && p.id !== player.id && getTokenCoordinates(p.id, p.pos).x === coords.x && getTokenCoordinates(p.id, p.pos).y === coords.y);
+                                const offset = playersAtSamePos.length > 0 ? (idx % 2 === 0 ? -10 : 10) : 0;
+                                const isCurrentTurn = idx === currentPlayerIdx && (gameState === 'playing' || gameState === 'rolling');
+
+                                return (
+                                    <div 
+                                        key={player.id} 
+                                        className="absolute z-20 transition-all duration-300 ease-in-out -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center"
+                                        style={{ 
+                                            left: `calc(${(coords.x + 0.5) * (100/15)}% + ${offset}px)`, 
+                                            top: `calc(${(coords.y + 0.5) * (100/15)}% + ${offset}px)` 
+                                        }}
+                                    >
+                                        <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full ${player.color} flex items-center justify-center text-white text-lg ${player.shadow} border border-white/50 ${isCurrentTurn ? 'active-player-ring' : ''}`}>
+                                            <i className={`fa-solid ${player.icon}`}></i>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                    
+                    {/* CỘT PHẢI: BẢNG XẾP HẠNG NHỎ */}
+                    <div className="w-full md:w-[250px] glass-panel rounded-2xl flex flex-col z-10 shadow-2xl p-6 relative overflow-hidden">
+                        <h2 className="text-xs font-scifi text-slate-400 mb-6 tracking-widest uppercase border-b border-slate-700 pb-2">Tiến trình các đội</h2>
+                        <div className="space-y-4">
+                            {players.map((p) => (
+                                <div key={p.id} className="relative">
+                                    <div className="flex justify-between items-center mb-1 text-xs font-bold">
+                                        <span className={`${p.text} uppercase`}><i className={`fa-solid ${p.icon} mr-1`}></i> {p.name}</span>
+                                        <span className="text-slate-400 font-mono">{p.pos}/{WINNING_SCORE}</span>
+                                    </div>
+                                    <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                                        <div 
+                                            className={`h-full ${p.color} transition-all duration-500`}
+                                            style={{ width: `${(p.pos / WINNING_SCORE) * 100}%`, boxShadow: `0 0 10px ${p.color.replace('bg-','')}` }}
+                                        ></div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+    
+    <style>
+        /* Tùy chỉnh thanh cuộn cho bảng log */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.3); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(56, 189, 248, 0.6); }
+    </style>
+</body>
+</html>
